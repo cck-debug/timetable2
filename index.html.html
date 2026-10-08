@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>通告 AI 月曆管家 - 學校通知自動排程</title>
+
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+
+  <!-- React & Babel -->
+  <script src="https://cdn.jsdelivr.net/npm/react@18/umd/react.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    body {
+      font-family: 'Inter', 'Noto Sans TC', sans-serif;
+      background-color: #f8fafc;
+      color: #0f172a;
+    }
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+    @keyframes pulse-subtle {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.7; }
+    }
+    .animate-pulse-subtle {
+      animation: pulse-subtle 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="min-h-screen antialiased selection:bg-teal-500 selection:text-white">
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef } = React;
+
+    // SVG Icon Component
+    const Icon = ({ name, className = "w-4 h-4" }) => {
+      const icons = {
+        calendar: <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z" />,
+        sparkles: <path d="M12 3v3m0 12v3M3 12h3m12 0h3m-2.5-6.5l-2 2m-7 7l-2 2m0-11l2 2m7 7l2 2" />,
+        upload: <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4m4-5l5-5 5 5m-5-5v12" />,
+        trash: <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2" />,
+        checkSquare: <path d="M9 11l2 2 4-4m6 2a9 9 0 11-18 0 9 9 9 0 0118 0z" />,
+        plus: <path d="M12 5v14M5 12h14" />,
+        chevronLeft: <path d="M15 18l-6-6 6-6" />,
+        chevronRight: <path d="M9 18l6-6-6-6" />,
+        external: <path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6M15 3h6v6M10 14L21 3" />,
+        key: <path d="M21 2l-2 2m-1.5 1.5l-3 3m-2 2l-3 3m-2 2l-3 3M3 21h4l1.5-1.5L7 18l-1.5-1.5L4 18l-1 3z" />,
+        clock: <path d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 9 0 0118 0z" />,
+        alert: <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />,
+        shirt: <path d="M20.38 3.46L16 2a4 4 0 01-8 0L3.62 3.46a2 2 0 00-1.34 2.23l.58 3.47a1 1 0 00.99.84H6v10a2 2 0 002 2h8a2 2 0 002-2V10h2.15a1 1 0 00.99-.84l.58-3.47a2 2 0 00-1.34-2.23z" />,
+        dollar: <path d="M12 1v22M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />,
+        download: <path d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />,
+        fileText: <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8zM14 2v6h6M16 13H8M16 17H8M10 9H8" />,
+        x: <path d="M18 6L6 18M6 6l12 12" />,
+        check: <path d="M20 6L9 17l-5-5" />,
+        camera: <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2zM12 9a4 4 0 1 0 0 8 4 4 0 0 0 0-8z" />
+      };
+
+      return (
+        <svg 
+          className={className} 
+          fill="none" 
+          stroke="currentColor" 
+          strokeWidth="2" 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          viewBox="0 0 24 24"
+        >
+          {icons[name] || icons.fileText}
+        </svg>
+      );
+    };
+
+    // Category Color Mapping
+    const CATEGORIES = {
+      '戶外活動': { bg: 'bg-emerald-100 text-emerald-800 border-emerald-300', dot: 'bg-emerald-500' },
+      '行政與健康': { bg: 'bg-blue-100 text-blue-800 border-blue-300', dot: 'bg-blue-500' },
+      '學校派對': { bg: 'bg-purple-100 text-purple-800 border-purple-300', dot: 'bg-purple-500' },
+      '學習與課業': { bg: 'bg-amber-100 text-amber-800 border-amber-300', dot: 'bg-amber-500' },
+      '繳費與回條': { bg: 'bg-rose-100 text-rose-800 border-rose-300', dot: 'bg-rose-500' },
+      '特別安排': { bg: 'bg-indigo-100 text-indigo-800 border-indigo-300', dot: 'bg-indigo-500' }
+    };
+
+    // Child Badge Styling Mapping
+    const CHILD_BADGES = {
+      '大仔': { bg: 'bg-blue-600 text-white', lightBg: 'bg-blue-50 text-blue-700 border-blue-200' },
+      '細仔': { bg: 'bg-amber-500 text-white', lightBg: 'bg-amber-50 text-amber-800 border-amber-200' },
+      '兩者': { bg: 'bg-purple-600 text-white', lightBg: 'bg-purple-50 text-purple-700 border-purple-200' }
+    };
+
+    // Initial Sample Events
+    const INITIAL_EVENTS = [
+      {
+        id: 'evt_1',
+        title: '秋季親子戶外郊遊',
+        child: '大仔',
+        date: '2026-10-24',
+        time: '09:00 - 14:00',
+        category: '戶外活動',
+        summary: '請家長帶同幼兒穿著整齊體育服到校集合，帶備水壺及替換衣物。',
+        itemsToBring: ['學校體育服', '貼名水壺', '替換衣服1套', '濕紙巾'],
+        feesOrDocs: '繳交活動費用 $120',
+        completed: false,
+        urgent: true
+      },
+      {
+        id: 'evt_2',
+        title: '萬聖節便服主題派對',
+        child: '細仔',
+        date: '2026-10-30',
+        time: '全日',
+        category: '學校派對',
+        summary: '當日可穿著萬聖節服飾或便服到校，可自備獨立包裝小小分享食料。',
+        itemsToBring: ['獨立包裝分享包 (自選)'],
+        feesOrDocs: '無額外費用',
+        completed: true,
+        urgent: false
+      }
+    ];
+
+    // Google Calendar Link Builder
+    const getGoogleCalendarUrl = (evt) => {
+      const title = `[${evt.child || '學校通告'}] ${evt.title}`;
+      const dateStr = evt.date.replace(/-/g, '');
+      const details = `【學校通告事項】\n適用對象：${evt.child || '全部'}\n類別：${evt.category}\n時間：${evt.time}\n摘要：${evt.summary}\n物資：${(evt.itemsToBring && evt.itemsToBring.length) ? evt.itemsToBring.join(', ') : '無'}\n繳費/文件：${evt.feesOrDocs || '無'}`;
+      return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dateStr}/${dateStr}&details=${encodeURIComponent(details)}`;
+    };
+
+    // iCal Download Builder
+    const downloadICS = (evt) => {
+      const cleanDate = evt.date.replace(/-/g, '');
+      const content = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'PRODID:-//Notice AI Calendar//HK',
+        'BEGIN:VEVENT',
+        `SUMMARY:[${evt.child || '學校通告'}] ${evt.title}`,
+        `DESCRIPTION:適用對象: ${evt.child || '全部'}\\n摘要: ${evt.summary}\\n物資: ${(evt.itemsToBring || []).join(', ')}\\n繳費/文件: ${evt.feesOrDocs || '無'}`,
+        `DTSTART;VALUE=DATE:${cleanDate}`,
+        `DTEND;VALUE=DATE:${cleanDate}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\r\n');
+
+      const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `${evt.title}.ics`);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    };
+
+    function App() {
+      // LocalStorage Persistence
+      const [events, setEvents] = useState(() => {
+        try {
+          const saved = localStorage.getItem('min_notice_events');
+          return saved ? JSON.parse(saved) : INITIAL_EVENTS;
+        } catch (e) {
+          return INITIAL_EVENTS;
+        }
+      });
+
+      // UI States
+      const [noticeText, setNoticeText] = useState('');
+      const [imageFile, setImageFile] = useState(null);
+      const [imagePreview, setImagePreview] = useState(null);
+      const [isAnalyzing, setIsAnalyzing] = useState(false);
+      const [reviewEvent, setReviewEvent] = useState(null);
+      const [toast, setToast] = useState(null);
+      const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
+      const [currentMonth, setCurrentMonth] = useState(new Date(2026, 9, 1));
+      const [filterCategory, setFilterCategory] = useState('全部');
+      const [filterChild, setFilterChild] = useState('全部');
+
+      const fileInputRef = useRef(null);
+
+      useEffect(() => {
+        try {
+          localStorage.setItem('min_notice_events', JSON.stringify(events));
+        } catch (e) {
+          console.error("Failed to save events", e);
+        }
+      }, [events]);
+
+      const showToastMsg = (msg) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 3000);
+      };
+
+      // Handle Image Selection
+      const handleImageUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          setImageFile({
+            mimeType: file.type || 'image/jpeg',
+            base64: reader.result.split(',')[1]
+          });
+          setImagePreview(reader.result);
+        };
+        reader.readAsDataURL(file);
+      };
+
+      // Gemini API Notice Parser
+      const handleAnalyzeNotice = async () => {
+        if (!noticeText.trim() && !imageFile) {
+          showToastMsg('請先輸入通告文字或上載紙本通告相片！');
+          return;
+        }
+
+        setIsAnalyzing(true);
+
+        try {
+          const systemInstruction = `你是一位精明且細心的幼稚園/學校通告秘書。
+請從家長提供之通告內容（文字或圖片）中，提取核心資訊並輸出標準 JSON Object：
+{
+  "title": "簡短活動或通告名稱 (例如：秋季郊遊 或 朗誦比賽回條)",
+  "child": "適用對象，請依文字推斷: '大仔' | '細仔' | '兩者' (預設為 '大仔')",
+  "date": "核心活動日期或截止日期 (格式: YYYY-MM-DD，若未提及年份預設為 2026年)",
+  "time": "時間描述 (例如: 09:00 - 12:00 或 截止交回條)",
+  "category": "必須選其一: '戶外活動' | '行政與健康' | '學校派對' | '學習與課業' | '繳費與回條' | '特別安排'",
+  "summary": "1至2句重點摘要說明",
+  "itemsToBring": ["要帶物資1", "要帶物資2"],
+  "feesOrDocs": "需要繳交之費用或回條說明 (無則填 '無')",
+  "urgent": true/false (是否屬急件或近兩日內截止)
+}
+請只輸出純 JSON 格式，無須額外解說。`;
+
+          let parts = [];
+          if (noticeText.trim()) {
+            parts.push({ text: `請分析此通告內容：\n${noticeText}` });
+          }
+          if (imageFile) {
+            parts.push({
+              inlineData: {
+                mimeType: imageFile.mimeType,
+                data: imageFile.base64
+              }
+            });
+            parts.push({ text: "請識別圖片中的通告細節。" });
+          }
+
+          // Direct call using standard endpoint without prompt for user key
+          const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=`;
+
+          const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              contents: [{ role: 'user', parts }],
+              systemInstruction: { parts: [{ text: systemInstruction }] },
+              generationConfig: { responseMimeType: "application/json" }
+            })
+          });
+
+          const data = await res.json();
+          const jsonString = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+          if (jsonString) {
+            const parsed = JSON.parse(jsonString);
+            setReviewEvent({
+              title: parsed.title || '學校通告事項',
+              child: parsed.child || '大仔',
+              date: parsed.date || new Date().toISOString().split('T')[0],
+              time: parsed.time || '全日',
+              category: parsed.category || '行政與健康',
+              summary: parsed.summary || '',
+              itemsToBring: Array.isArray(parsed.itemsToBring) ? parsed.itemsToBring : [],
+              feesOrDocs: parsed.feesOrDocs || '無',
+              urgent: Boolean(parsed.urgent)
+            });
+            showToastMsg('✨ AI 已提取內容，請確認適用子女後加到月曆！');
+          } else {
+            throw new Error("Invalid output format");
+          }
+        } catch (err) {
+          console.error("Parse error:", err);
+          showToastMsg('⚠️ 分析失敗，請重新試一次或手動輸入');
+        } finally {
+          setIsAnalyzing(false);
+        }
+      };
+
+      // Confirm & Save Event into Calendar
+      const handleSaveEvent = (e) => {
+        e.preventDefault();
+        if (!reviewEvent) return;
+
+        const newEvt = {
+          ...reviewEvent,
+          id: 'evt_' + Date.now(),
+          completed: false
+        };
+
+        setEvents([newEvt, ...events]);
+        setSelectedDate(newEvt.date);
+
+        // Auto move month view to event month
+        const evtDate = new Date(newEvt.date);
+        if (!isNaN(evtDate.getTime())) {
+          setCurrentMonth(new Date(evtDate.getFullYear(), evtDate.getMonth(), 1));
+        }
+
+        setReviewEvent(null);
+        setNoticeText('');
+        setImageFile(null);
+        setImagePreview(null);
+        showToastMsg(`🎉 已成功加入【${newEvt.child}】的月曆！`);
+      };
+
+      const toggleComplete = (id) => {
+        setEvents(events.map(ev => ev.id === id ? { ...ev, completed: !ev.completed } : ev));
+        showToastMsg('狀態已更新');
+      };
+
+      const deleteEvent = (id) => {
+        setEvents(events.filter(ev => ev.id !== id));
+        showToastMsg('已從月曆刪除');
+      };
+
+      // Filtered Events
+      const filteredEvents = useMemo(() => {
+        return events.filter(e => {
+          const matchCategory = filterCategory === '全部' || e.category === filterCategory;
+          const matchChild = filterChild === '全部' || e.child === filterChild || e.child === '兩者';
+          return matchCategory && matchChild;
+        }).sort((a, b) => new Date(a.date) - new Date(b.date));
+      }, [events, filterCategory, filterChild]);
+
+      return (
+        <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 pb-12">
+          
+          {/* Toast Notification */}
+          {toast && (
+            <div className="fixed top-5 right-5 z-50 bg-slate-900 text-white px-4 py-3 rounded-2xl shadow-2xl text-xs font-semibold flex items-center gap-2 border border-slate-700 animate-bounce">
+              <Icon name="check" className="w-4 h-4 text-emerald-400" />
+              <span>{toast}</span>
+            </div>
+          )}
+
+          {/* Navigation Bar */}
+          <header className="bg-teal-900 text-white sticky top-0 z-30 shadow-md">
+            <div className="max-w-6xl mx-auto px-4 py-3.5 flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div className="p-2 bg-teal-800 rounded-xl border border-teal-700">
+                  <Icon name="calendar" className="w-6 h-6 text-amber-300" />
+                </div>
+                <div>
+                  <h1 className="text-base font-bold tracking-tight flex items-center gap-2">
+                    通告 AI 月曆管家
+                    <span className="bg-amber-400 text-slate-950 text-[10px] font-extrabold px-2 py-0.5 rounded-full">
+                      雙仔雙女版
+                    </span>
+                  </h1>
+                  <p className="text-xs text-teal-200">清晰分開 大仔 / 細仔 學校事項，自動安排排程</p>
+                </div>
+              </div>
+
+              {/* Children Badges Display */}
+              <div className="flex items-center gap-1.5">
+                <span className="text-[10px] bg-blue-600 text-white px-2 py-1 rounded-lg font-bold">👦 大仔</span>
+                <span className="text-[10px] bg-amber-500 text-white px-2 py-1 rounded-lg font-bold">🧒 細仔</span>
+              </div>
+            </div>
+          </header>
+
+          <main className="max-w-6xl mx-auto w-full px-4 pt-6 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            {/* LEFT COLUMN: Notice Upload & AI Extractor (5 Cols) */}
+            <div className="lg:col-span-5 space-y-5">
+              <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                    <Icon name="sparkles" className="w-4 h-4 text-amber-500" />
+                    上載或貼上通告內容
+                  </h2>
+                  <span className="text-[11px] text-slate-400">支援文字 / 圖片識別</span>
+                </div>
+
+                {/* Input Text Area */}
+                <div>
+                  <textarea
+                    rows="5"
+                    placeholder="在此貼上學校通告文字、eClass 訊息或 WhatsApp 通知內容..."
+                    value={noticeText}
+                    onChange={(e) => setNoticeText(e.target.value)}
+                    className="w-full text-xs p-3.5 bg-slate-50 border border-slate-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-teal-500 transition-all resize-none leading-relaxed"
+                  ></textarea>
+                </div>
+
+                {/* Photo Upload Area */}
+                <div className="space-y-2">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+
+                  {imagePreview ? (
+                    <div className="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-900 group max-h-48 flex items-center justify-center">
+                      <img src={imagePreview} alt="Notice preview" className="object-contain max-h-48 w-full" />
+                      <button
+                        onClick={() => { setImageFile(null); setImagePreview(null); }}
+                        className="absolute top-2 right-2 bg-slate-900/80 text-white p-1.5 rounded-full hover:bg-rose-600 transition-colors"
+                      >
+                        <Icon name="x" className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-full py-3 px-4 border-2 border-dashed border-slate-200 hover:border-teal-500 rounded-2xl bg-slate-50/50 hover:bg-teal-50/30 text-xs text-slate-600 font-medium flex items-center justify-center gap-2 transition-all"
+                    >
+                      <Icon name="camera" className="w-4 h-4 text-teal-600" />
+                      <span>上載紙本通告照片 / 螢幕截圖</span>
+                    </button>
+                  )}
+                </div>
+
+                {/* Submit AI Button */}
+                <button
+                  onClick={handleAnalyzeNotice}
+                  disabled={isAnalyzing}
+                  className="w-full py-3 bg-gradient-to-r from-teal-700 to-teal-800 hover:from-teal-800 hover:to-teal-900 text-white font-bold rounded-2xl text-xs flex items-center justify-center gap-2 shadow-md disabled:opacity-50 transition-transform active:scale-[0.99]"
+                >
+                  {isAnalyzing ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>AI 正在分析通告關鍵事項...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="sparkles" className="w-4 h-4 text-amber-300" />
+                      <span>一鍵 AI 分析並分派至月曆</span>
+                    </>
+                  )}
+                </button>
+              </div>
+
+              {/* Quick Guide Card */}
+              <div className="bg-amber-50/60 rounded-2xl p-4 border border-amber-200 text-xs space-y-1.5 text-amber-900">
+                <div className="font-bold flex items-center gap-1.5">
+                  <Icon name="checkSquare" className="w-4 h-4 text-amber-600" />
+                  <span>AI 自動分類大仔與細仔：</span>
+                </div>
+                <p className="text-amber-800 leading-relaxed pl-5">
+                  • 自動辨識係大仔抑或細仔通告<br/>
+                  • 分開整理各人的物資與回條時間表<br/>
+                  • 可選擇同時查看全家或單一孩子的行事曆
+                </p>
+              </div>
+            </div>
+
+            {/* RIGHT COLUMN: Interactive Calendar & Agenda (7 Cols) */}
+            <div className="lg:col-span-7 space-y-6">
+              
+              {/* Calendar Card */}
+              <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+                
+                {/* Calendar Month Header */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Icon name="calendar" className="w-5 h-5 text-teal-700" />
+                    <h2 className="text-base font-bold text-slate-900">
+                      {currentMonth.getFullYear()} 年 {currentMonth.getMonth() + 1} 月
+                    </h2>
+                  </div>
+                  
+                  <div className="flex items-center gap-1">
+                    <button
+                      onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))}
+                      className="p-2 hover:bg-slate-100 rounded-xl text-slate-600 transition-colors"
+                    >
+                      <Icon name="chevronLeft" className="w-4 h-4" />
+                    </button>
+                    <button
+                      onClick={() => setCurrentMonth(new Date())}
+                      className="text-xs px-2.5 py-1 bg-slate-100 hover:bg-slate-200 rounded-lg font-medium text-slate-700"
+                    >
+                      今天
+                    </button>
+                    <button
+                      onClick={() => setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))}
+                      className="p-2 hover:bg-slate-100 rounded-xl text-slate-600 transition-colors"
+                    >
+                      <Icon name="chevronRight" className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Calendar Grid View */}
+                <div className="border border-slate-100 rounded-2xl overflow-hidden">
+                  <div className="grid grid-cols-7 bg-slate-50/80 border-b border-slate-100 text-center py-2 text-[11px] font-bold text-slate-500">
+                    <div>日</div><div>一</div><div>二</div><div>三</div><div>四</div><div>五</div><div>六</div>
+                  </div>
+
+                  {(() => {
+                    const year = currentMonth.getFullYear();
+                    const month = currentMonth.getMonth();
+                    const firstDayIndex = new Date(year, month, 1).getDay();
+                    const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+                    const cells = [];
+                    for (let i = 0; i < firstDayIndex; i++) {
+                      cells.push(<div key={`blank-${i}`} className="h-20 bg-slate-50/30 border-r border-b border-slate-100" />);
+                    }
+
+                    for (let day = 1; day <= daysInMonth; day++) {
+                      const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+                      const dayEvents = events.filter(e => {
+                        const matchDate = e.date === dateStr;
+                        const matchChild = filterChild === '全部' || e.child === filterChild || e.child === '兩者';
+                        return matchDate && matchChild;
+                      });
+                      const isSelected = selectedDate === dateStr;
+
+                      cells.push(
+                        <div
+                          key={day}
+                          onClick={() => setSelectedDate(dateStr)}
+                          className={`h-20 p-1 border-r border-b border-slate-100 cursor-pointer transition-colors relative flex flex-col justify-between ${
+                            isSelected ? 'bg-teal-50/80 ring-2 ring-teal-500 inset-0 z-10' : 'hover:bg-slate-50'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className={`text-[11px] font-bold rounded-md px-1.5 py-0.5 ${
+                              isSelected ? 'bg-teal-700 text-white' : 'text-slate-700'
+                            }`}>
+                              {day}
+                            </span>
+                            {dayEvents.length > 0 && (
+                              <span className="w-1.5 h-1.5 rounded-full bg-teal-600 animate-pulse-subtle"></span>
+                            )}
+                          </div>
+
+                          <div className="space-y-1 overflow-y-auto max-h-12 my-0.5">
+                            {dayEvents.map(ev => {
+                              const catStyle = CATEGORIES[ev.category] || CATEGORIES['行政與健康'];
+                              const childBadge = CHILD_BADGES[ev.child] || CHILD_BADGES['大仔'];
+                              return (
+                                <div
+                                  key={ev.id}
+                                  className={`text-[9px] px-1 py-0.5 rounded truncate font-medium flex items-center gap-1 ${
+                                    ev.completed ? 'bg-slate-200 text-slate-500 line-through' : catStyle.bg
+                                  }`}
+                                  title={`${ev.child}: ${ev.title}`}
+                                >
+                                  <span className={`text-[8px] px-1 rounded font-bold shrink-0 ${childBadge.bg}`}>
+                                    {ev.child || '大仔'}
+                                  </span>
+                                  <span className="truncate">{ev.title}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    return <div className="grid grid-cols-7">{cells}</div>;
+                  })()}
+                </div>
+              </div>
+
+              {/* Agenda / Event List Card */}
+              <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-200 space-y-4">
+                <div className="space-y-3 border-b border-slate-100 pb-3">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                      <Icon name="clock" className="w-4 h-4 text-teal-600" />
+                      通告日程事項 ({filteredEvents.length})
+                    </h3>
+                  </div>
+
+                  {/* Child Filter Tabs */}
+                  <div className="flex items-center gap-1.5 bg-slate-100 p-1 rounded-xl text-xs font-bold w-fit">
+                    {['全部', '大仔', '細仔'].map(c => (
+                      <button
+                        key={c}
+                        onClick={() => setFilterChild(c)}
+                        className={`px-3 py-1 rounded-lg transition-all ${
+                          filterChild === c
+                            ? 'bg-white text-slate-900 shadow-xs'
+                            : 'text-slate-500 hover:text-slate-800'
+                        }`}
+                      >
+                        {c === '全部' ? '👨‍👩‍👧‍👦 全部對象' : c === '大仔' ? '👦 大仔' : '🧒 細仔'}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Category Filter */}
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1 sm:pb-0">
+                    {['全部', '戶外活動', '學校派對', '繳費與回條', '特別安排'].map(cat => (
+                      <button
+                        key={cat}
+                        onClick={() => setFilterCategory(cat)}
+                        className={`text-[11px] px-2.5 py-1 rounded-xl font-medium shrink-0 transition-colors ${
+                          filterCategory === cat
+                            ? 'bg-slate-900 text-white font-bold'
+                            : 'bg-slate-50 text-slate-600 hover:bg-slate-200'
+                        }`}
+                      >
+                        {cat}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Event Items */}
+                <div className="space-y-3">
+                  {filteredEvents.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed border-slate-200 rounded-2xl text-slate-400 text-xs">
+                      目前沒有相關的通告事項
+                    </div>
+                  ) : (
+                    filteredEvents.map(evt => {
+                      const catStyle = CATEGORIES[evt.category] || CATEGORIES['行政與健康'];
+                      const childBadge = CHILD_BADGES[evt.child] || CHILD_BADGES['大仔'];
+                      return (
+                        <div
+                          key={evt.id}
+                          className={`p-4 rounded-2xl border transition-all ${
+                            evt.completed ? 'bg-slate-50/70 border-slate-200 opacity-60' : 'bg-white border-slate-200 hover:border-teal-300 shadow-2xs'
+                          }`}
+                        >
+                          <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${childBadge.bg}`}>
+                                  {evt.child || '大仔'}
+                                </span>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${catStyle.bg}`}>
+                                  {evt.category}
+                                </span>
+                                {evt.urgent && !evt.completed && (
+                                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                                    優先處理
+                                  </span>
+                                )}
+                              </div>
+                              <h4 className={`text-sm font-bold ${evt.completed ? 'line-through text-slate-400' : 'text-slate-900'}`}>
+                                {evt.title}
+                              </h4>
+                              <p className="text-xs text-slate-600 leading-relaxed">
+                                {evt.summary}
+                              </p>
+                            </div>
+
+                            <div className="shrink-0 bg-slate-50 border border-slate-200 px-3 py-1.5 rounded-xl text-center">
+                              <div className="text-[10px] text-slate-400 font-medium">日期 / 時間</div>
+                              <div className="text-xs font-bold text-teal-800">{evt.date}</div>
+                              <div className="text-[10px] text-slate-500">{evt.time}</div>
+                            </div>
+                          </div>
+
+                          {/* Items & Fees */}
+                          <div className="mt-3 pt-2.5 border-t border-slate-100 grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                            {evt.itemsToBring && evt.itemsToBring.length > 0 && (
+                              <div className="bg-teal-50/50 p-2 rounded-xl border border-teal-100/80">
+                                <span className="font-bold text-teal-900 flex items-center gap-1 text-[11px] mb-1">
+                                  <Icon name="shirt" className="w-3.5 h-3.5 text-teal-600" /> 物資：
+                                </span>
+                                <div className="flex flex-wrap gap-1">
+                                  {evt.itemsToBring.map((it, idx) => (
+                                    <span key={idx} className="bg-white px-1.5 py-0.5 rounded text-[10px] border border-teal-200 text-teal-800">
+                                      {it}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {evt.feesOrDocs && evt.feesOrDocs !== '無' && (
+                              <div className="bg-rose-50/50 p-2 rounded-xl border border-rose-100/80">
+                                <span className="font-bold text-rose-900 flex items-center gap-1 text-[11px] mb-1">
+                                  <Icon name="dollar" className="w-3.5 h-3.5 text-rose-600" /> 繳費 / 回條：
+                                </span>
+                                <p className="text-[11px] text-rose-800 font-medium">{evt.feesOrDocs}</p>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Card Action Buttons */}
+                          <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <button
+                                onClick={() => toggleComplete(evt.id)}
+                                className={`text-[11px] font-semibold px-2.5 py-1 rounded-xl flex items-center gap-1 ${
+                                  evt.completed ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border border-emerald-300'
+                                }`}
+                              >
+                                <Icon name="checkSquare" className="w-3.5 h-3.5" />
+                                {evt.completed ? '已完成' : '標示已辦好'}
+                              </button>
+
+                              <a
+                                href={getGoogleCalendarUrl(evt)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-[11px] font-semibold px-2.5 py-1 bg-blue-50 text-blue-700 hover:bg-blue-100 border border-blue-200 rounded-xl flex items-center gap-1"
+                              >
+                                <Icon name="calendar" className="w-3.5 h-3.5" />
+                                加至 Google 月曆
+                              </a>
+
+                              <button
+                                onClick={() => downloadICS(evt)}
+                                className="text-[11px] font-semibold px-2.5 py-1 bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-xl flex items-center gap-1"
+                                title="下載 Apple / Outlook .ics 檔案"
+                              >
+                                <Icon name="download" className="w-3.5 h-3.5" />
+                                .ics
+                              </button>
+                            </div>
+
+                            <button
+                              onClick={() => deleteEvent(evt.id)}
+                              className="text-slate-400 hover:text-rose-600 p-1 rounded-lg"
+                            >
+                              <Icon name="trash" className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+            </div>
+          </main>
+
+          {/* AI Extraction Confirmation Modal */}
+          {reviewEvent && (
+            <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+              <div className="bg-white rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl animate-in fade-in zoom-in-95">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Icon name="sparkles" className="w-5 h-5 text-amber-500" />
+                    確認 AI 提取資料並加入月曆
+                  </h3>
+                  <button onClick={() => setReviewEvent(null)} className="p-1 text-slate-400 hover:text-slate-600">
+                    <Icon name="x" className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveEvent} className="space-y-3 text-xs">
+                  <div className="grid grid-cols-3 gap-3">
+                    <div className="col-span-2">
+                      <label className="font-bold text-slate-700 mb-1 block">通告/活動名稱</label>
+                      <input
+                        type="text"
+                        value={reviewEvent.title}
+                        onChange={(e) => setReviewEvent({ ...reviewEvent, title: e.target.value })}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl font-bold text-slate-900 focus:ring-2 focus:ring-teal-500"
+                        required
+                      />
+                    </div>
+
+                    <div>
+                      <label className="font-bold text-slate-700 mb-1 block">適用對象</label>
+                      <select
+                        value={reviewEvent.child || '大仔'}
+                        onChange={(e) => setReviewEvent({ ...reviewEvent, child: e.target.value })}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl font-bold bg-amber-50 text-amber-900 focus:ring-2 focus:ring-teal-500"
+                      >
+                        <option value="大仔">👦 大仔</option>
+                        <option value="細仔">🧒 細仔</option>
+                        <option value="兩者">👨‍👩‍👧‍👦 兩者皆有</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="font-bold text-slate-700 mb-1 block">活動 / 截止日期</label>
+                      <input
+                        type="date"
+                        value={reviewEvent.date}
+                        onChange={(e) => setReviewEvent({ ...reviewEvent, date: e.target.value })}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="font-bold text-slate-700 mb-1 block">分類</label>
+                      <select
+                        value={reviewEvent.category}
+                        onChange={(e) => setReviewEvent({ ...reviewEvent, category: e.target.value })}
+                        className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                      >
+                        {Object.keys(CATEGORIES).map(cat => (
+                          <option key={cat} value={cat}>{cat}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 mb-1 block">摘要重點</label>
+                    <textarea
+                      rows="2"
+                      value={reviewEvent.summary}
+                      onChange={(e) => setReviewEvent({ ...reviewEvent, summary: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                    ></textarea>
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 mb-1 block">需帶物資 (用逗號隔開)</label>
+                    <input
+                      type="text"
+                      value={reviewEvent.itemsToBring ? reviewEvent.itemsToBring.join(', ') : ''}
+                      onChange={(e) => setReviewEvent({ ...reviewEvent, itemsToBring: e.target.value.split(/[,，]/).map(s => s.trim()) })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="font-bold text-slate-700 mb-1 block">繳費 / 回條簽署</label>
+                    <input
+                      type="text"
+                      value={reviewEvent.feesOrDocs}
+                      onChange={(e) => setReviewEvent({ ...reviewEvent, feesOrDocs: e.target.value })}
+                      className="w-full p-2.5 border border-slate-200 rounded-xl focus:ring-2 focus:ring-teal-500"
+                    />
+                  </div>
+
+                  <div className="pt-2 flex items-center justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setReviewEvent(null)}
+                      className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold rounded-xl"
+                    >
+                      取消
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-5 py-2 bg-teal-800 hover:bg-teal-900 text-white font-bold rounded-xl shadow-md"
+                    >
+                      確認並加入【{reviewEvent.child || '大仔'}】月曆
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    }
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
